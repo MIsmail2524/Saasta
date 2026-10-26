@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #fbf8f2;
+  --surface: #ffffff;
+  --ink: #17201b;
+  --muted: #5d6a62;
+  --line: #e7e1d4;
+  --brand: #0e5c46;
+  --brand-ink: #ffffff;
+  --brand-soft: #e3f1ea;
+  --accent: #e8a317;
+  --accent-soft: #fdf1d6;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --ok: #157f3c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1411;
+    --surface: #151d19;
+    --ink: #eef3ef;
+    --muted: #9aaba1;
+    --line: #26322c;
+    --brand: #3fb68b;
+    --brand-ink: #06140e;
+    --brand-soft: #173328;
+    --accent: #f0b43a;
+    --accent-soft: #33280f;
+    --danger: #f97066;
+    --danger-soft: #3a1714;
+    --ok: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-urdu: var(--font-nastaliq);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+@utility card {
+  @apply rounded-2xl border border-line bg-surface;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-brand-ink hover:brightness-110;
+}
+@utility btn-ghost {
+  @apply btn border border-line bg-surface hover:bg-brand-soft;
+}
+@utility input {
+  @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium;
+}
