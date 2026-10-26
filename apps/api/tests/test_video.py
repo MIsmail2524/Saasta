@@ -4,8 +4,8 @@ import tempfile
 
 import pytest
 
-from app.media.video import FFMPEG, keyframes
 from app.media.validate import MediaError
+from app.media.video import FFMPEG, keyframes
 
 
 def _make_video(seconds: int) -> bytes:

@@ -113,7 +113,7 @@ async def search_one(q: Query, img: Image.Image | None, merchant_id: str | None 
                 tasks[p.name] = _safe(p.name, p.search(text_q), 60 if p.name != shop.name else 25)
                 sources_used.append(p.name)
     results = await asyncio.gather(*tasks.values())
-    for name, (o, meta) in zip(tasks.keys(), results):
+    for name, (o, meta) in zip(tasks.keys(), results, strict=True):
         offers += o
         if meta.get("error"):
             failed.append(name)

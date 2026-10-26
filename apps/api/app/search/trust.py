@@ -59,7 +59,7 @@ async def score(offers: list[Offer], check_age: bool = True) -> None:
     ages = {}
     if check_age and domains:
         res = await asyncio.gather(*(domain_age_days(d) for d in list(domains)[:15]))
-        ages = dict(zip(list(domains)[:15], res))
+        ages = dict(zip(list(domains)[:15], res, strict=True))
 
     for o in offers:
         pts, why = 60, []
