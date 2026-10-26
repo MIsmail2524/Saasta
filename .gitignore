@@ -1,0 +1,36 @@
+# deps
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# builds
+.next/
+out/
+dist/
+build/
+*.egg-info/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# runtime data
+apps/api/data/
+apps/api/uploads/
+*.sqlite
+*.db
+
+# tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+coverage/
+.coverage
+.DS_Store
+.idea/
+.vscode/
