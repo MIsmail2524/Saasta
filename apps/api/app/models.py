@@ -2,7 +2,16 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, LargeBinary, String, Text,
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -7,6 +7,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,9 +19,15 @@ from app.db import SessionLocal, get_db
 from app.deps import current_user, merchant_owner
 from app.models import ApiKey, CatalogItem, Click, Merchant, Search, User
 from app.net.safe_fetch import UnsafeURL, safe_get, safe_outbound
+from app.schemas import (
+    ApiKeyIn,
+    CatalogItemIn,
+    CatalogUploadIn,
+    MerchantIn,
+    ShopifyImportIn,
+)
 from app.search import understand, visual
 from app.search.providers.base import parse_price
-from app.schemas import ApiKeyIn, CatalogItemIn, CatalogUploadIn, MerchantIn, ShopifyImportIn
 
 router = APIRouter(prefix="/v1/merchant", tags=["merchant"])
 VERIFY_PATH = "/.well-known/saasta-verify.txt"
@@ -56,16 +63,35 @@ async def get_merchant(m: Merchant = Depends(merchant_owner)):
     return _public(m)
 
 
+async def _dns_txt(domain: str) -> list[str]:
+    # DNS-over-HTTPS keeps this dependency-free and avoids trusting the local resolver.
+    async with httpx.AsyncClient(timeout=6, trust_env=False) as c:
+        r = await c.get("https://cloudflare-dns.com/dns-query", params={"name": domain, "type": "TXT"},
+                        headers={"accept": "application/dns-json"})
+        r.raise_for_status()
+        return [a.get("data", "").strip('"') for a in r.json().get("Answer", []) if a.get("type") == 16]
+
+
 @router.post("/verify")
 async def verify_domain(request: Request, m: Merchant = Depends(merchant_owner), db: AsyncSession = Depends(get_db)):
-    """Proves the account controls the store: put the token at /.well-known/saasta-verify.txt."""
+    """Prove control of the store, either way works:
+    - DNS TXT record on the domain:  saasta-verify=<token>   (best for Shopify / hosted stores)
+    - file at https://<domain>/.well-known/saasta-verify.txt containing <token>
+    """
     await enforce(request, "verify", 10, 3600, subject=m.id)
+    ok = False
     try:
-        body, _, final = await safe_get(f"https://{m.domain}{VERIFY_PATH}", max_bytes=4096, accept="text/plain")
-    except UnsafeURL as e:
-        raise HTTPException(400, f"Could not read verification file: {e}")
-    if not _owns(final, m.domain) or m.verify_token not in body.decode(errors="ignore"):
-        raise HTTPException(400, "Token not found in verification file")
+        ok = f"saasta-verify={m.verify_token}" in await _dns_txt(m.domain)
+    except httpx.HTTPError:
+        pass
+    if not ok:
+        try:
+            body, _, final = await safe_get(f"https://{m.domain}{VERIFY_PATH}", max_bytes=4096, accept="text/plain")
+            ok = _owns(final, m.domain) and m.verify_token in body.decode(errors="ignore")
+        except UnsafeURL:
+            pass
+    if not ok:
+        raise HTTPException(400, "Verification not found yet. DNS changes can take a few minutes.")
     m.domain_verified = True
     await db.commit()
     return _public(m)
