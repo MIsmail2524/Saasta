@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,6 +12,10 @@ class Base(DeclarativeBase):
 
 
 _settings = get_settings()
+if _settings.database_url.startswith("sqlite") and ":///" in _settings.database_url:
+    _path = _settings.database_url.split(":///", 1)[1]
+    if _path and _path != ":memory:":
+        os.makedirs(os.path.dirname(os.path.abspath(_path)), exist_ok=True)
 engine = create_async_engine(_settings.database_url, pool_pre_ping=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
