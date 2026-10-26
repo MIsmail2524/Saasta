@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Example env files only contain empty placeholders"
+paths = ['''(^|/)\.env\.example$''']
