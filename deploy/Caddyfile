@@ -1,0 +1,26 @@
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# API + widget go straight to FastAPI; everything else is the Next.js app.
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+	handle /w/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	request_body {
+		max_size 70MB
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+	}
+	log {
+		output stdout
+		format json
+	}
+}

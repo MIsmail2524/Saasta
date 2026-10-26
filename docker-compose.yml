@@ -1,0 +1,74 @@
+# Production-style stack: Caddy (HTTPS) -> web (Next.js) -> api (FastAPI) + worker, Postgres, Redis.
+# Usage: cp .env.example .env && fill it in && docker compose up -d --build
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [web]
+
+  web:
+    build: ./apps/web
+    restart: unless-stopped
+    environment:
+      SAASTA_API_INTERNAL_URL: http://api:8000
+      NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN:-localhost}
+    depends_on: [api]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  api: &api
+    build: ./apps/api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SAASTA_ENV: prod
+      SAASTA_DATABASE_URL: postgresql+asyncpg://saasta:${POSTGRES_PASSWORD}@db:5432/saasta
+      SAASTA_REDIS_URL: redis://redis:6379/0
+      SAASTA_PUBLIC_WEB_URL: https://${SITE_DOMAIN:-localhost}
+      SAASTA_PUBLIC_API_URL: https://${SITE_DOMAIN:-localhost}/api
+      SAASTA_CORS_ORIGINS: https://${SITE_DOMAIN:-localhost}
+      SAASTA_TRUSTED_PROXY_HOPS: 1
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  worker:
+    <<: *api
+    command: ["python", "-m", "app.worker"]
+    healthcheck: { disable: true }
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: saasta
+      POSTGRES_DB: saasta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saasta"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+
+volumes:
+  pg:
+  uploads:
+  caddy_data:
