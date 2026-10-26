@@ -49,7 +49,8 @@ export function Account() {
           <h1 className="text-3xl font-extrabold">Salaam, {user.name || user.email.split("@")[0]}</h1>
           <p className="text-muted">{user.email}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {user.role !== "shopper" && <Link className="btn-ghost" href="/merchant">Store dashboard</Link>}
           <button className="btn-ghost" onClick={() => logout()}>Log out</button>
           <button className="btn-ghost" onClick={() => logout(true)}>Log out everywhere</button>
         </div>

@@ -14,12 +14,12 @@ export function AccountLink() {
   return (
     <>
       {user.role !== "shopper" && (
-        <Link href="/merchant" className="rounded-lg px-3 py-2 font-medium hover:bg-brand-soft">
+        <Link href="/merchant" className="hidden rounded-lg px-3 py-2 font-medium hover:bg-brand-soft sm:block">
           Store dashboard
         </Link>
       )}
-      <Link href="/account" className="btn-ghost !py-2">
-        {user.name || user.email.split("@")[0]}
+      <Link href="/account" className="btn-ghost max-w-36 !py-2">
+        <span className="truncate">{user.name || user.email.split("@")[0]}</span>
       </Link>
     </>
   );
