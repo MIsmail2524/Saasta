@@ -14,7 +14,10 @@ services:
     depends_on: [web]
 
   web:
-    build: ./apps/web
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN:-localhost}
     restart: unless-stopped
     environment:
       SAASTA_API_INTERNAL_URL: http://api:8000
