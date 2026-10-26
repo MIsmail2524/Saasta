@@ -115,6 +115,12 @@ async def test_widget_requires_key_and_origin(client):
     key = (await client.post("/v1/merchant/keys", json={"label": "site"})).json()["key"]
     client.cookies.clear()
     files = {"file": ("a.jpg", jpeg(), "image/jpeg")}
+    r = await client.post("/w/v1/widget/search", files=files,
+                          headers={"X-API-Key": key, "Origin": "https://www.wshop.pk"})
+    assert r.status_code == 402  # free plan has no widget
+    async with SessionLocal() as db:
+        await db.execute(update(Merchant).where(Merchant.domain == "wshop.pk").values(plan="growth"))
+        await db.commit()
     assert (await client.post("/w/v1/widget/search", files=files)).status_code == 401
     r = await client.post("/w/v1/widget/search", files=files,
                           headers={"X-API-Key": key, "Origin": "https://evil.example"})
@@ -144,3 +150,18 @@ async def test_account_deletion(client):
     assert (await client.delete("/v1/auth/me")).status_code == 204
     r = await client.post("/v1/auth/login", json={"email": "del@example.com", "password": "Str0ng-Passw0rd!"})
     assert r.status_code == 401
+
+
+async def test_free_plan_product_cap(client, monkeypatch):
+    from app import plans
+    monkeypatch.setitem(plans.PLANS["free"], "products", 2)
+    await signup(client, "cap@example.com")
+    await client.post("/v1/merchant", json={"name": "Cap Shop", "domain": "capshop.pk"})
+    async with SessionLocal() as db:
+        await db.execute(update(Merchant).where(Merchant.domain == "capshop.pk").values(domain_verified=True))
+        await db.commit()
+    items = [{"external_id": str(i), "title": f"Item {i}", "url": f"https://capshop.pk/p/{i}",
+              "image_url": f"https://capshop.pk/i/{i}.jpg"} for i in range(3)]
+    body = (await client.post("/v1/merchant/catalog", json={"items": items})).json()
+    assert body["accepted"] == 2 and body["rejected_count"] == 1
+    assert (await client.get("/v1/merchant/insights")).status_code == 402

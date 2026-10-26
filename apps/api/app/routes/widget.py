@@ -13,6 +13,7 @@ from app.deps import merchant_from_key
 from app.media.storage import store
 from app.media.validate import MediaError, clean_image
 from app.models import Merchant, Search
+from app.plans import limits
 from app.routes.search import read_capped
 from app.search import visual
 from app.search.providers import catalog
@@ -32,8 +33,11 @@ async def widget_search(request: Request, file: UploadFile = File(...),
         host = (urlsplit(origin).hostname or "").removeprefix("www.")
         if not (host == m.domain or host.endswith("." + m.domain)):
             raise HTTPException(403, "Widget not allowed on this site")
+    plan = limits(m.plan)
+    if not plan["widget"]:
+        raise HTTPException(402, "Search-by-photo widget needs the Growth plan")
     await enforce(request, "widget-ip", 20, 60)
-    await enforce(request, "widget-merchant", 5000, 86400, subject=m.id)
+    await enforce(request, "widget-merchant", plan["widget_daily"], 86400, subject=m.id)
     try:
         jpeg, img = clean_image(await read_capped(file, 10 * 1024 * 1024), max_side=800)
     except MediaError as e:

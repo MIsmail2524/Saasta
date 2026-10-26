@@ -19,6 +19,7 @@ from app.db import SessionLocal, get_db
 from app.deps import current_user, merchant_owner
 from app.models import ApiKey, CatalogItem, Click, Merchant, Search, User
 from app.net.safe_fetch import UnsafeURL, safe_get, safe_outbound
+from app.plans import limits
 from app.schemas import (
     ApiKeyIn,
     CatalogItemIn,
@@ -41,7 +42,7 @@ def _owns(url: str, domain: str) -> bool:
 def _public(m: Merchant) -> dict:
     return {"id": m.id, "name": m.name, "domain": m.domain, "domain_verified": m.domain_verified,
             "verify_url": f"https://{m.domain}{VERIFY_PATH}", "verify_token": m.verify_token,
-            "country": m.country, "currency": m.currency, "plan": m.plan}
+            "country": m.country, "currency": m.currency, "plan": m.plan, "limits": limits(m.plan)}
 
 
 @router.post("", status_code=201)
@@ -138,7 +139,9 @@ def _require_verified(m: Merchant):
 
 async def _upsert(m: Merchant, items: list[CatalogItemIn]) -> dict:
     accepted, rejected = 0, []
+    cap = limits(m.plan)["products"]
     async with SessionLocal() as db:
+        count = await db.scalar(select(func.count()).select_from(CatalogItem).where(CatalogItem.merchant_id == m.id))
         for it in items:
             url, img = safe_outbound(it.url), safe_outbound(it.image_url)
             if not url or not img or not _owns(url, m.domain):
@@ -147,8 +150,12 @@ async def _upsert(m: Merchant, items: list[CatalogItemIn]) -> dict:
             row = (await db.execute(select(CatalogItem).where(
                 CatalogItem.merchant_id == m.id, CatalogItem.external_id == it.external_id))).scalar_one_or_none()
             if row is None:
+                if count >= cap:
+                    rejected.append({"id": it.external_id, "reason": f"plan limit of {cap} products reached"})
+                    continue
                 row = CatalogItem(merchant_id=m.id, external_id=it.external_id)
                 db.add(row)
+                count += 1
             changed_img = row.image_url != img
             row.title, row.url, row.image_url = it.title, url, img
             row.price, row.currency = it.price, it.currency or m.currency
@@ -284,6 +291,8 @@ async def insights(days: int = 30, m: Merchant = Depends(merchant_owner), db: As
 
     Aggregated and anonymous: no shopper identity, images, or individual searches are exposed.
     """
+    if not limits(m.plan)["insights"]:
+        raise HTTPException(402, "Demand radar is part of the Growth plan")
     days = max(7, min(days, 90))
     since = datetime.now(timezone.utc) - timedelta(days=days)
     rows = (await db.execute(select(Search.category, Search.best_price, Search.result).where(

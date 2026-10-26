@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, money } from "@/lib/api";
 import { refreshMe, useMe } from "@/lib/use-me";
 
-type M = { id: string; name: string; domain: string; domain_verified: boolean; verify_url: string; verify_token: string; currency: string; plan: string };
+type M = { id: string; name: string; domain: string; domain_verified: boolean; verify_url: string; verify_token: string; currency: string; plan: string; limits: { products: number; widget: boolean; insights: boolean } };
 type Key = { id: string; prefix: string; label: string; revoked: boolean; last_used_at?: string };
 type Cat = { total: number; indexed: number; items: { id: string; title: string; image_url: string; price?: number; currency: string; category?: string; indexed: boolean; url: string }[] };
 type An = { clicks: number; widget_searches: number; by_day: [string, number][]; top_products: { url: string; clicks: number }[] };
@@ -56,7 +56,10 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-10">
-      <h1 className="text-3xl font-extrabold">{m ? m.name : "Register your store"}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-extrabold">{m ? m.name : "Register your store"}</h1>
+        {m && <span className="chip uppercase">{m.plan} plan · up to {m.limits.products.toLocaleString()} products</span>}
+      </div>
       {msg && <p role="status" className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-brand-soft text-brand" : "bg-danger-soft text-danger"}`}>{msg.t}</p>}
       {m === null ? (
         <Register onDone={async () => { await refreshMe(); await load(); }} />
@@ -80,7 +83,7 @@ export function Dashboard() {
           <Catalog m={m} run={run} />
           <Keys m={m} />
           <Analytics />
-          <Insights />
+          {m.limits.insights ? <Insights /> : <Upsell />}
         </>
       )}
     </div>
@@ -191,6 +194,11 @@ function Keys({ m }: { m: M }) {
           New key
         </button>
       </div>
+      {!m.limits.widget && (
+        <p className="rounded-xl bg-accent-soft p-3 text-sm">
+          The widget is part of the Growth plan. Keys you create now will start working as soon as you upgrade.
+        </p>
+      )}
       {fresh && (
         <div className="space-y-2 rounded-xl bg-accent-soft p-3 text-sm">
           <p className="font-semibold">Copy this snippet now. The key won&apos;t be shown again.</p>
@@ -275,6 +283,19 @@ function Insights() {
           ))}
         </div>
       </div>
+    </section>
+  );
+}
+
+function Upsell() {
+  return (
+    <section className="card space-y-2 border-accent p-5">
+      <h2 className="text-lg font-bold">Demand radar (Growth plan)</h2>
+      <p className="text-sm text-muted">
+        See what shoppers in your country searched for and couldn&apos;t find, the price band they expect per category,
+        and which colours are trending. Founding partners get Growth free for 3 months. Contact us to switch.
+      </p>
+      <a className="btn-primary" href="mailto:stores@saasta.pk?subject=Growth%20plan">Upgrade to Growth</a>
     </section>
   );
 }
