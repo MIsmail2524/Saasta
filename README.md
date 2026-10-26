@@ -82,6 +82,13 @@ cp .env.example .env   # set SITE_DOMAIN, POSTGRES_PASSWORD, SAASTA_SECRET_KEY, 
 docker compose up -d --build
 ```
 
+Operator commands (inside the api container):
+
+```bash
+docker compose exec api python -m app.admin set-plan mystore.pk growth
+docker compose exec api python -m app.admin stats
+```
+
 The API refuses to start in production with default secrets, SQLite, wildcard CORS or without Redis.
 
 ## Security
