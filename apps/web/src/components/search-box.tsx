@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { type Box, Cropper, cropFile } from "./cropper";
 
 const MAX_IMAGE = 10 * 1024 * 1024;
 const MAX_VIDEO = 60 * 1024 * 1024;
@@ -11,6 +12,7 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [box, setBox] = useState<Box | null>(null);
   const [link, setLink] = useState("");
   const [text, setText] = useState("");
   const [drag, setDrag] = useState(false);
@@ -25,6 +27,7 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
     if (f.size > (isVideo ? MAX_VIDEO : MAX_IMAGE))
       return setError(isVideo ? "Video must be under 60 MB." : "Photo must be under 10 MB.");
     setFile(f);
+    setBox(null);
     setLink("");
   }, []);
 
@@ -49,7 +52,7 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
     setBusy(true);
     setError(null);
     const fd = new FormData();
-    if (file) fd.append("file", file);
+    if (file) fd.append("file", box && !file.type.startsWith("video/") ? await cropFile(file, box) : file);
     else if (link.trim()) fd.append("url", link.trim());
     if (text.trim()) fd.append("text", text.trim());
     try {
@@ -76,7 +79,7 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
           setDrag(false);
           pick(e.dataTransfer.files?.[0]);
         }}
-        onClick={() => input.current?.click()}
+        onClick={() => !file && input.current?.click()}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
@@ -92,25 +95,35 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
           onChange={(e) => pick(e.target.files?.[0])}
         />
         {preview ? (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center gap-4 sm:flex-row">
             {isVideo ? (
               <video src={preview} className="h-32 rounded-lg" muted autoPlay loop playsInline />
             ) : (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={preview} alt="Your upload" className="h-32 rounded-lg object-contain" />
+              <Cropper src={preview} box={box} onChange={setBox} />
             )}
             <div className="text-left text-sm">
               <p className="font-semibold">{isVideo ? "Video ready: we'll find every item in it" : "Photo ready"}</p>
-              <button
-                type="button"
-                className="mt-1 text-muted underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFile(null);
-                }}
-              >
-                Remove
-              </button>
+              <div className="mt-1 flex gap-3">
+                <button
+                  type="button"
+                  className="text-muted underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                    setBox(null);
+                  }}
+                >
+                  Remove
+                </button>
+                <button type="button" className="text-muted underline" onClick={(e) => { e.stopPropagation(); input.current?.click(); }}>
+                  Change
+                </button>
+                {box && (
+                  <button type="button" className="text-muted underline" onClick={(e) => { e.stopPropagation(); setBox(null); }}>
+                    Clear selection
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ) : (
