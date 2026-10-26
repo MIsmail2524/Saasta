@@ -1,6 +1,6 @@
 import hashlib
 import hmac
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from urllib.parse import quote, urlsplit
 
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi import Query as Q
 from fastapi.responses import FileResponse, RedirectResponse
 from PIL import Image
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import jobs
@@ -26,6 +27,7 @@ from app.search.types import Query
 
 router = APIRouter(prefix="/v1", tags=["search"])
 READ_CHUNK = 1024 * 1024
+CACHE_HOURS = 24
 
 
 async def read_capped(f: UploadFile, cap: int) -> bytes:
@@ -92,9 +94,26 @@ async def create_search(
     except MediaError as e:
         raise HTTPException(422, str(e))
 
+    # Same image + same refinement recently? Reuse it: instant for the shopper, no provider cost.
+    if search.media_key:
+        since = datetime.now(timezone.utc) - timedelta(hours=CACHE_HOURS)
+        prev = (await db.execute(
+            select(Search).where(Search.media_key == search.media_key, Search.status == "done",
+                                 Search.query_text.is_(None) if search.query_text is None
+                                 else Search.query_text == search.query_text,
+                                 Search.country == country, Search.merchant_id.is_(None),
+                                 Search.created_at >= since)
+            .order_by(Search.created_at.desc()).limit(1)
+        )).scalar_one_or_none()
+        if prev and prev.result and (prev.result.get("currency") in (None, currency)):
+            search.status, search.result = "done", prev.result
+            search.category, search.best_price = prev.category, prev.best_price
+            search.finished_at = datetime.now(timezone.utc)
+
     db.add(search)
     await db.commit()
-    jobs.spawn(_run(search.id, payload))
+    if search.status != "done":
+        jobs.spawn(_run(search.id, payload))
     return {"id": search.id, "status": search.status}
 
 

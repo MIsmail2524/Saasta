@@ -165,3 +165,15 @@ async def test_free_plan_product_cap(client, monkeypatch):
     body = (await client.post("/v1/merchant/catalog", json={"items": items})).json()
     assert body["accepted"] == 2 and body["rejected_count"] == 1
     assert (await client.get("/v1/merchant/insights")).status_code == 402
+
+
+async def test_repeat_image_search_is_served_from_cache(client):
+    client.cookies.clear()
+    img = jpeg(color=(10, 120, 60))
+    first = (await client.post("/v1/searches", files={"file": ("a.jpg", img, "image/jpeg")})).json()
+    for _ in range(50):
+        if (await client.get(f"/v1/searches/{first['id']}")).json()["status"] == "done":
+            break
+        await asyncio.sleep(0.1)
+    second = (await client.post("/v1/searches", files={"file": ("b.jpg", img, "image/jpeg")})).json()
+    assert second["status"] == "done" and second["id"] != first["id"]
