@@ -50,6 +50,8 @@ class Merchant(Base):
     country: Mapped[str] = mapped_column(String(2), default="pk")
     currency: Mapped[str] = mapped_column(String(3), default="PKR")
     plan: Mapped[str] = mapped_column(String(20), default="free")
+    kind: Mapped[str] = mapped_column(String(10), default="store")  # store | social
+    allow_training: Mapped[bool] = mapped_column(Boolean, default=False)  # opt-in: our try-on model may learn from photos
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     keys: Mapped[list["ApiKey"]] = relationship(back_populates="merchant", cascade="all, delete-orphan")
@@ -70,21 +72,45 @@ class ApiKey(Base):
 
 
 class CatalogItem(Base):
+    """A product in Saasta's own index: partner uploads, crawled store pages, or social sellers."""
+
     __tablename__ = "catalog_items"
-    __table_args__ = (Index("ix_catalog_merchant_ext", "merchant_id", "external_id", unique=True),)
+    __table_args__ = (Index("ix_catalog_source_ext", "domain", "external_id", unique=True),)
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
-    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), index=True)
-    external_id: Mapped[str] = mapped_column(String(128))
+    source: Mapped[str] = mapped_column(String(10), default="partner", index=True)  # partner | crawl | social
+    merchant_id: Mapped[str | None] = mapped_column(ForeignKey("merchants.id", ondelete="CASCADE"), index=True)
+    domain: Mapped[str] = mapped_column(String(253), index=True)
+    external_id: Mapped[str] = mapped_column(String(160))
     title: Mapped[str] = mapped_column(String(300))
+    brand: Mapped[str | None] = mapped_column(String(120))
     url: Mapped[str] = mapped_column(String(2048))
     image_url: Mapped[str] = mapped_column(String(2048))
     price: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(3), default="PKR")
     category: Mapped[str | None] = mapped_column(String(40), index=True)
     in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
+    rating: Mapped[float | None] = mapped_column(Float)
+    reviews: Mapped[int | None] = mapped_column(Integer)
     phash: Mapped[str | None] = mapped_column(String(32))
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    color_hist: Mapped[bytes | None] = mapped_column(LargeBinary)
+    vec: Mapped[bytes | None] = mapped_column(LargeBinary)  # float16 unit vector from our fashion model
+    color: Mapped[str | None] = mapped_column(String(20))
+    allow_training: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, index=True)
+
+
+class CrawlSite(Base):
+    """A store domain our crawler indexes (public product pages only, robots.txt respected)."""
+
+    __tablename__ = "crawl_sites"
+    domain: Mapped[str] = mapped_column(String(253), primary_key=True)
+    kind: Mapped[str | None] = mapped_column(String(12))  # shopify | sitemap
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(20), default="new")
+    error: Mapped[str | None] = mapped_column(String(300))
+    products: Mapped[int] = mapped_column(Integer, default=0)
+    last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class Search(Base):
@@ -153,7 +179,6 @@ class TryOn(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     status: Mapped[str] = mapped_column(String(12), default="queued")
     category: Mapped[str] = mapped_column(String(20))
-    provider_job: Mapped[str | None] = mapped_column(String(80))
-    output_url: Mapped[str | None] = mapped_column(String(2048))
+    output_key: Mapped[str | None] = mapped_column(String(80))
     error: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

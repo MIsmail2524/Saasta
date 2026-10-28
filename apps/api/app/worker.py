@@ -12,9 +12,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 
 from app.core.config import get_settings
+from app.crawl.crawler import crawl_site
 from app.db import SessionLocal, init_db
+from app.indexer import index_pending
 from app.media.storage import store
-from app.models import Search, Watch
+from app.models import CatalogItem, CrawlSite, Search, TryOn, Watch
 from app.net.safe_fetch import safe_get
 from app.search.providers.base import parse_price
 
@@ -92,6 +94,9 @@ async def retention() -> None:
             Search.user_id.is_(None), Search.created_at < datetime.now(timezone.utc) - timedelta(days=180)))
         await db.commit()
         keep = {k for (k,) in (await db.execute(select(Search.media_key))).all() if k}
+        keep |= {k for (k,) in (await db.execute(select(TryOn.output_key))).all() if k}
+        keep |= {u.rsplit("/", 1)[-1] for (u,) in (await db.execute(
+            select(CatalogItem.image_url).where(CatalogItem.image_url.contains("/v1/media/")))).all()}
     root = store().root
     for name in os.listdir(root):
         p = os.path.join(root, name)
@@ -99,17 +104,37 @@ async def retention() -> None:
             os.remove(p)
 
 
+async def crawl_due(max_sites: int = 20) -> None:
+    """Re-crawl each enabled site about once a week, then embed anything new."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    async with SessionLocal() as db:
+        sites = (await db.execute(select(CrawlSite.domain).where(
+            CrawlSite.enabled.is_(True),
+            (CrawlSite.last_crawled_at.is_(None)) | (CrawlSite.last_crawled_at < cutoff),
+        ).limit(max_sites))).scalars().all()
+    for domain in sites:
+        try:
+            await crawl_site(domain)
+            await index_pending(limit=5000, domain=domain)
+        except Exception:
+            log.exception("crawl failed for %s", domain)
+    await index_pending(limit=5000)
+
+
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     await init_db()
+    cycle = 0
     while True:
         try:
-            await retention()
-            n = await refresh_watches()
-            log.info("cycle done, %d alerts", n)
+            await crawl_due()
+            if cycle % 6 == 0:  # every ~6h
+                await retention()
+                log.info("watches: %d alerts", await refresh_watches())
         except Exception:
             log.exception("worker cycle failed")
-        await asyncio.sleep(6 * 3600)
+        cycle += 1
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":

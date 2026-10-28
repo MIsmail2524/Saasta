@@ -1,0 +1,24 @@
+# Starting crawl list: Pakistani fashion, footwear and jewellery stores.
+# The crawler checks robots.txt for each site before fetching anything.
+pk.khaadi.com
+gulahmedshop.com
+sapphireonline.pk
+junaidjamshed.com
+outfitters.com.pk
+breakout.com.pk
+limelight.pk
+alkaramstudio.com
+nishatlinen.com
+mariab.pk
+bonanzasatrangi.com
+stylo.pk
+ndure.com
+ethnic.com.pk
+beechtree.pk
+zellbury.com
+generation.com.pk
+agha-noor.com
+charcoal.com.pk
+diners.com.pk
+bata.com.pk
+servis.pk
