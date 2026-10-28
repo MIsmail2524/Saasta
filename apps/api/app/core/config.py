@@ -30,10 +30,16 @@ class Settings(BaseSettings):
     max_image_pixels: int = 40_000_000
     upload_dir: str = "./data/uploads"
 
-    # Providers (all optional; pipeline skips missing ones)
-    serpapi_key: str | None = None
-    apify_token: str | None = None
-    fashn_api_key: str | None = None
+    # Our own ML service (fashion embeddings, try-on). Internal network only.
+    ml_url: str | None = "http://localhost:8100"
+    ml_token: str = "dev-ml-token"  # noqa: S105 - dev default; validate_prod() rejects it
+    ml_timeout_s: float = 20.0
+    tryon_timeout_s: float = 600.0
+
+    # Crawler
+    crawl_max_pages_per_site: int = 3000
+    crawl_min_delay_s: float = 1.0
+
     default_country: str = "pk"
     default_currency: str = "PKR"
 
@@ -69,6 +75,8 @@ class Settings(BaseSettings):
             problems.append("use Postgres in prod")
         if any(o == "*" for o in self.cors_origins):
             problems.append("wildcard CORS not allowed in prod")
+        if self.ml_token == "dev-ml-token":  # noqa: S105
+            problems.append("SAASTA_ML_TOKEN must be set")
         if not self.redis_url:
             problems.append("SAASTA_REDIS_URL required in prod (rate limiting)")
         if problems:

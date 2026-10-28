@@ -4,18 +4,20 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from PIL import Image
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import ml_client
 from app.core.ratelimit import client_ip, enforce
 from app.core.security import hash_ip
-from app.db import get_db
+from app.db import SessionLocal, get_db
 from app.deps import merchant_from_key
 from app.media.storage import store
 from app.media.validate import MediaError, clean_image
-from app.models import Merchant, Search
+from app.models import CatalogItem, Merchant, Search
 from app.plans import limits
 from app.routes.search import read_capped
-from app.search import visual
+from app.search import index, pipeline, visual
 from app.search.providers import catalog
 
 router = APIRouter(prefix="/v1/widget", tags=["widget"])
@@ -43,7 +45,15 @@ async def widget_search(request: Request, file: UploadFile = File(...),
     except MediaError as e:
         raise HTTPException(422, str(e))
     fp = visual.fingerprint(img)
-    offers = await catalog.match(fp, None, None, limit=12, merchant_id=m.id, min_sim=0.5)
+    try:
+        vec = (await ml_client.embed_images([jpeg]))[0]
+        hits = await index.search(vec, k=12, merchant_id=m.id)
+        async with SessionLocal() as s2:
+            rows = {r.id: r for r in (await s2.execute(
+                select(CatalogItem).where(CatalogItem.id.in_([i for i, _ in hits])))).scalars()}
+        offers = [pipeline._offer(rows[i], sc, fp) for i, sc in hits if i in rows and sc >= 0.5]
+    except ml_client.MLUnavailable:
+        offers = await catalog.match(fp, None, None, limit=12, merchant_id=m.id, min_sim=0.5)
     db.add(Search(kind="image", merchant_id=m.id, status="done", media_key=store().put_jpeg(jpeg),
                   ip_hash=hash_ip(client_ip(request)), country=m.country,
                   result={"count": len(offers)}))

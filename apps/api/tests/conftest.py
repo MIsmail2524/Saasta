@@ -10,6 +10,7 @@ os.environ.update({
     "SAASTA_SECRET_KEY": "test-secret-key-test-secret-key-0123456789",
     "SAASTA_RL_AUTH_PER_MIN": "1000",
     "SAASTA_RL_SEARCH_PER_MIN": "1000",
+    "SAASTA_ML_URL": "",
 })
 
 import httpx  # noqa: E402

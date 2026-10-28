@@ -77,7 +77,7 @@ async def test_image_search_end_to_end_with_partner_catalog(client):
     fp = visual.fingerprint_bytes(jpeg())
     async with SessionLocal() as db:
         item = (await db.execute(select(CatalogItem))).scalar_one()
-        item.phash, item.embedding = fp["phash"], visual.hist_to_bytes(fp["hist"])
+        item.phash, item.color_hist = fp["phash"], visual.hist_to_bytes(fp["hist"])
         await db.commit()
 
     client.cookies.clear()
