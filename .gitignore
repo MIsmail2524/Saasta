@@ -34,3 +34,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# model weights and training data
+apps/ml/weights/
+apps/ml/data/

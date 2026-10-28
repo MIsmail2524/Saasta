@@ -1,0 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0
+torchvision==0.29.2
+open_clip_torch
+onnxruntime
+fastapi
+uvicorn[standard]
+pillow
+numpy
+pydantic-settings
+huggingface_hub
+fashn-vton @ git+https://github.com/fashn-AI/fashn-vton-1.5.git

@@ -1,0 +1,15 @@
+[project]
+name = "saasta-ml"
+version = "1.0.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "S", "I"]
+ignore = ["E501", "B008", "B904", "S110"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S104", "S105", "S106", "S107", "S603"]
