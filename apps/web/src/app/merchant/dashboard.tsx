@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, money } from "@/lib/api";
 import { refreshMe, useMe } from "@/lib/use-me";
 
-type M = { id: string; name: string; domain: string; domain_verified: boolean; verify_url: string; verify_token: string; currency: string; plan: string; limits: { products: number; widget: boolean; insights: boolean } };
+type M = { id: string; name: string; domain: string; domain_verified: boolean; verify_url: string; verify_token: string; currency: string; plan: string; limits: { products: number; widget: boolean; insights: boolean }; kind: "store" | "social"; allow_training: boolean };
 type Key = { id: string; prefix: string; label: string; revoked: boolean; last_used_at?: string };
 type Cat = { total: number; indexed: number; items: { id: string; title: string; image_url: string; price?: number; currency: string; category?: string; indexed: boolean; url: string }[] };
 type An = { clicks: number; widget_searches: number; by_day: [string, number][]; top_products: { url: string; clicks: number }[] };
@@ -65,7 +65,13 @@ export function Dashboard() {
         <Register onDone={async () => { await refreshMe(); await load(); }} />
       ) : (
         <>
-          {!m.domain_verified && (
+          {!m.domain_verified && m.kind === "social" && (
+            <section className="card space-y-2 border-accent p-5">
+              <h2 className="text-lg font-bold">1. We&apos;re verifying @{m.domain.split("/")[1]}</h2>
+              <p className="text-sm text-muted">Our team will DM your account a code within a day to confirm it&apos;s you. Then you can add products.</p>
+            </section>
+          )}
+          {!m.domain_verified && m.kind === "store" && (
             <section className="card space-y-3 border-accent p-5">
               <h2 className="text-lg font-bold">1. Verify you own {m.domain}</h2>
               <p className="text-sm text-muted">Pick one. Option A works on Shopify and any hosted store.</p>
@@ -92,13 +98,21 @@ export function Dashboard() {
 
 function Register({ onDone }: { onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null);
+  const [kind, setKind] = useState<"store" | "social">("store");
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     try {
       await api("/v1/merchant", {
         method: "POST",
-        body: JSON.stringify({ name: f.get("name"), domain: f.get("domain"), currency: f.get("currency") }),
+        body: JSON.stringify({
+          name: f.get("name"),
+          kind,
+          domain: f.get("domain"),
+          platform: f.get("platform") ?? "instagram",
+          currency: f.get("currency"),
+          allow_training: f.get("allow_training") === "on",
+        }),
       });
       onDone();
     } catch (e) {
@@ -107,13 +121,57 @@ function Register({ onDone }: { onDone: () => void }) {
   }
   return (
     <form onSubmit={submit} className="card max-w-md space-y-3 p-5">
-      <input name="name" className="input" placeholder="Store name" required minLength={2} maxLength={120} />
-      <input name="domain" className="input" placeholder="Domain, e.g. mystore.pk" required maxLength={253} />
+      <div className="grid grid-cols-2 gap-2">
+        {(["store", "social"] as const).map((k) => (
+          <button key={k} type="button" onClick={() => setKind(k)} className={`chip justify-center !py-2 !text-sm ${kind === k ? "!border-brand bg-brand text-brand-ink" : ""}`}>
+            {k === "store" ? "I have a website" : "I sell on Instagram / TikTok"}
+          </button>
+        ))}
+      </div>
+      <input name="name" className="input" placeholder="Store / brand name" required minLength={2} maxLength={120} />
+      {kind === "store" ? (
+        <input name="domain" className="input" placeholder="Domain, e.g. mystore.pk" required maxLength={253} />
+      ) : (
+        <div className="grid grid-cols-[auto_1fr] gap-2">
+          <select name="platform" className="input" defaultValue="instagram">
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+          <input name="domain" className="input" placeholder="@yourhandle" required maxLength={60} />
+        </div>
+      )}
       <select name="currency" className="input" defaultValue="PKR">
         {["PKR", "INR", "AED", "SAR", "GBP", "USD", "EUR"].map((c) => <option key={c}>{c}</option>)}
       </select>
+      <label className="flex items-start gap-2 text-sm text-muted">
+        <input type="checkbox" name="allow_training" className="mt-1" />
+        <span>Let Saasta use my product photos to improve its try-on and search models (optional, you can change this later).</span>
+      </label>
       {err && <p className="text-sm text-danger">{err}</p>}
-      <button className="btn-primary w-full">Create store</button>
+      <button className="btn-primary w-full">Create</button>
+    </form>
+  );
+}
+
+function PhotoUpload({ run }: { run: (fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
+  return (
+    <form
+      className="grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-[1fr_1fr_120px_auto]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        run(async () => {
+          await api("/v1/merchant/catalog/photo", { method: "POST", body: fd });
+          form.reset();
+        }, "Product added. It becomes searchable in a minute.");
+      }}
+    >
+      <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required className="input" />
+      <input name="title" className="input" placeholder="Title, e.g. Red chiffon suit" required minLength={2} maxLength={300} />
+      <input name="price" type="number" min={0} className="input" placeholder="Price" />
+      <input name="link" type="url" className="input sm:col-span-3" placeholder="Link to your post or WhatsApp (https://wa.me/…)" required maxLength={2048} />
+      <button className="btn-primary">Add product</button>
     </form>
   );
 }
@@ -131,6 +189,7 @@ function Catalog({ m, run }: { m: M; run: (fn: () => Promise<unknown>, ok: strin
         <h2 className="text-lg font-bold">Products</h2>
         {cat && <p className="text-sm text-muted">{cat.total} listed · {cat.indexed} visually indexed</p>}
       </div>
+      {m.kind === "store" && (
       <div className="flex flex-wrap gap-2">
         <button
           className="btn-primary"
@@ -156,7 +215,13 @@ function Catalog({ m, run }: { m: M; run: (fn: () => Promise<unknown>, ok: strin
         </label>
         <button className="btn-ghost" onClick={() => refresh()}>Refresh</button>
       </div>
-      <p className="text-xs text-muted">CSV columns: id, title, link, image_link, price, availability, product_type (Google Merchant Center format). Product links must be on {m.domain}.</p>
+      )}
+      <p className="text-xs text-muted">
+        {m.kind === "social"
+          ? "Add each product with a photo and a link to your Instagram/TikTok post or WhatsApp chat."
+          : `CSV columns: id, title, link, image_link, price, availability, product_type (Merchant Center format). Product links must be on ${m.domain}.`}
+      </p>
+      {m.kind === "social" && m.domain_verified && <PhotoUpload run={run} />}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {cat?.items.map((i) => (
           <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-line p-1 text-xs">

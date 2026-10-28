@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class _Strict(BaseModel):
@@ -40,19 +40,33 @@ class SearchUrlIn(_Strict):
 _DOMAIN = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,24}$")
 
 
+_HANDLE = re.compile(r"^[a-z0-9._]{2,30}$")
+
+
 class MerchantIn(_Strict):
     name: str = Field(min_length=2, max_length=120)
+    kind: str = Field(default="store", pattern=r"^(store|social)$")
+    # store: their website domain. social: their Instagram/TikTok handle.
     domain: str = Field(max_length=253)
+    platform: str = Field(default="instagram", pattern=r"^(instagram|tiktok)$")
     country: str = Field(default="pk", pattern=r"^[a-z]{2}$")
     currency: str = Field(default="PKR", pattern=r"^[A-Z]{3}$")
+    allow_training: bool = False
 
-    @field_validator("domain")
-    @classmethod
-    def clean_domain(cls, v: str) -> str:
-        v = v.lower().removeprefix("https://").removeprefix("http://").split("/")[0].removeprefix("www.")
+    @model_validator(mode="after")
+    def clean_domain(self):
+        v = self.domain.lower().strip()
+        if self.kind == "social":
+            handle = v.rstrip("/").split("/")[-1].removeprefix("@")
+            if not _HANDLE.match(handle):
+                raise ValueError("enter your handle like @mystore")
+            self.domain = f"{self.platform}.com/{handle}"
+            return self
+        v = v.removeprefix("https://").removeprefix("http://").split("/")[0].removeprefix("www.")
         if not _DOMAIN.match(v):
             raise ValueError("enter a domain like mystore.pk")
-        return v
+        self.domain = v
+        return self
 
 
 class CatalogItemIn(_Strict):
@@ -94,7 +108,3 @@ class BoardIn(_Strict):
     items: list[dict] = Field(default_factory=list, max_length=60)
 
 
-class TryOnIn(_Strict):
-    garment_url: str = Field(max_length=2048)
-    category: str = Field(pattern=r"^(auto|tops|bottoms|one-pieces)$", default="auto")
-    consent: bool

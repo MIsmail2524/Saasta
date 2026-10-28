@@ -1,5 +1,4 @@
 """Store side: onboarding, domain verification, catalog sync, API keys, analytics, demand insights."""
-import asyncio
 import csv
 import io
 import json
@@ -8,15 +7,18 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import jobs
+from app import indexer, jobs
+from app.core.config import get_settings
 from app.core.ratelimit import enforce
 from app.core.security import new_api_key
 from app.db import SessionLocal, get_db
 from app.deps import current_user, merchant_owner
+from app.media.storage import store
+from app.media.validate import MediaError, clean_image
 from app.models import ApiKey, CatalogItem, Click, Merchant, Search, User
 from app.net.safe_fetch import UnsafeURL, safe_get, safe_outbound
 from app.plans import limits
@@ -27,7 +29,7 @@ from app.schemas import (
     MerchantIn,
     ShopifyImportIn,
 )
-from app.search import understand, visual
+from app.search import understand
 from app.search.providers.base import parse_price
 
 router = APIRouter(prefix="/v1/merchant", tags=["merchant"])
@@ -42,7 +44,8 @@ def _owns(url: str, domain: str) -> bool:
 def _public(m: Merchant) -> dict:
     return {"id": m.id, "name": m.name, "domain": m.domain, "domain_verified": m.domain_verified,
             "verify_url": f"https://{m.domain}{VERIFY_PATH}", "verify_token": m.verify_token,
-            "country": m.country, "currency": m.currency, "plan": m.plan, "limits": limits(m.plan)}
+            "country": m.country, "currency": m.currency, "plan": m.plan, "limits": limits(m.plan),
+            "kind": m.kind, "allow_training": m.allow_training}
 
 
 @router.post("", status_code=201)
@@ -52,7 +55,7 @@ async def register(body: MerchantIn, user: User = Depends(current_user), db: Asy
     if (await db.execute(select(Merchant).where(Merchant.domain == body.domain))).scalar_one_or_none():
         raise HTTPException(409, "That domain is already registered")
     m = Merchant(owner_id=user.id, name=body.name, domain=body.domain, country=body.country,
-                 currency=body.currency)
+                 currency=body.currency, kind=body.kind, allow_training=body.allow_training)
     user.role = "merchant" if user.role == "shopper" else user.role
     db.add(m)
     await db.commit()
@@ -79,6 +82,9 @@ async def verify_domain(request: Request, m: Merchant = Depends(merchant_owner),
     - DNS TXT record on the domain:  saasta-verify=<token>   (best for Shopify / hosted stores)
     - file at https://<domain>/.well-known/saasta-verify.txt containing <token>
     """
+    if m.kind == "social":
+        raise HTTPException(400, "Social sellers are verified by our team, usually within a day. "
+                                 "We'll DM your account a code to confirm it's you.")
     await enforce(request, "verify", 10, 3600, subject=m.id)
     ok = False
     try:
@@ -137,6 +143,16 @@ def _require_verified(m: Merchant):
         raise HTTPException(403, "Verify your domain before syncing products")
 
 
+SOCIAL_HOSTS = ("instagram.com", "tiktok.com", "wa.me", "facebook.com", "daraz.pk")
+
+
+def _link_ok(m: Merchant, url: str) -> bool:
+    if m.kind == "social":
+        host = (urlsplit(url).hostname or "").lower().removeprefix("www.")
+        return any(host == h or host.endswith("." + h) for h in SOCIAL_HOSTS)
+    return _owns(url, m.domain)
+
+
 async def _upsert(m: Merchant, items: list[CatalogItemIn]) -> dict:
     accepted, rejected = 0, []
     cap = limits(m.plan)["products"]
@@ -144,8 +160,10 @@ async def _upsert(m: Merchant, items: list[CatalogItemIn]) -> dict:
         count = await db.scalar(select(func.count()).select_from(CatalogItem).where(CatalogItem.merchant_id == m.id))
         for it in items:
             url, img = safe_outbound(it.url), safe_outbound(it.image_url)
-            if not url or not img or not _owns(url, m.domain):
-                rejected.append({"id": it.external_id, "reason": "product url must be on your verified domain"})
+            if not url or not img or not _link_ok(m, url):
+                reason = ("link must be your Instagram/TikTok/WhatsApp" if m.kind == "social"
+                          else "product url must be on your verified domain")
+                rejected.append({"id": it.external_id, "reason": reason})
                 continue
             row = (await db.execute(select(CatalogItem).where(
                 CatalogItem.merchant_id == m.id, CatalogItem.external_id == it.external_id))).scalar_one_or_none()
@@ -153,39 +171,41 @@ async def _upsert(m: Merchant, items: list[CatalogItemIn]) -> dict:
                 if count >= cap:
                     rejected.append({"id": it.external_id, "reason": f"plan limit of {cap} products reached"})
                     continue
-                row = CatalogItem(merchant_id=m.id, external_id=it.external_id)
+                row = CatalogItem(merchant_id=m.id, external_id=it.external_id, domain=m.domain,
+                                  source="social" if m.kind == "social" else "partner")
                 db.add(row)
                 count += 1
-            changed_img = row.image_url != img
+            if row.image_url != img:
+                row.vec = row.phash = row.color_hist = None
             row.title, row.url, row.image_url = it.title, url, img
             row.price, row.currency = it.price, it.currency or m.currency
             row.category = it.category or understand.categorize([it.title])
-            row.in_stock = it.in_stock
-            if changed_img:
-                row.phash, row.embedding = None, None
+            row.in_stock, row.brand = it.in_stock, m.name
+            row.allow_training = m.allow_training
             accepted += 1
         await db.commit()
-    jobs.spawn(_fingerprint_pending(m.id))
+    jobs.spawn(indexer.index_pending(merchant_id=m.id))
     return {"accepted": accepted, "rejected": rejected[:50], "rejected_count": len(rejected)}
 
 
-async def _fingerprint_pending(merchant_id: str) -> None:
-    sem = asyncio.Semaphore(6)
-    async with SessionLocal() as db:
-        rows = (await db.execute(select(CatalogItem).where(
-            CatalogItem.merchant_id == merchant_id, CatalogItem.phash.is_(None)).limit(5000))).scalars().all()
-
-        async def one(row: CatalogItem):
-            async with sem:
-                try:
-                    data, ctype, _ = await safe_get(row.image_url, 4_000_000, "image/*", timeout=10)
-                    if ctype.startswith("image/") and (fp := visual.fingerprint_bytes(data)):
-                        row.phash, row.embedding = fp["phash"], visual.hist_to_bytes(fp["hist"])
-                except Exception:
-                    pass
-
-        await asyncio.gather(*(one(r) for r in rows))
-        await db.commit()
+@router.post("/catalog/photo")
+async def upload_photo(
+    photo: UploadFile = File(...),
+    title: str = Form(min_length=2, max_length=300),
+    link: str = Form(max_length=2048),
+    price: float | None = Form(default=None, ge=0, le=1e9),
+    m: Merchant = Depends(merchant_owner),
+):
+    """For sellers without a website (Instagram/WhatsApp shops): upload the product photo directly."""
+    _require_verified(m)
+    try:
+        jpeg, _ = clean_image(await photo.read(10 * 1024 * 1024 + 1), max_side=1200)
+    except MediaError as e:
+        raise HTTPException(422, str(e))
+    key = store().put_jpeg(jpeg)
+    item = CatalogItemIn(external_id="photo-" + key[:24], title=title, url=link,
+                         image_url=f"{get_settings().public_api_url}/v1/media/{key}", price=price)
+    return await _upsert(m, [item])
 
 
 @router.post("/catalog")
