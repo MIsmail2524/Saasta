@@ -28,19 +28,27 @@
 8. **Local first.** PKR by default, local brands recognised as trusted, eastern wear categories (kurta, khussa,
    lawn, lehenga, jhumka…) understood natively.
 
-## Unit economics (rough, check current provider pricing)
+## Unit economics (self-hosted)
 
-- SerpApi: roughly 1 to 2.5 US cents per call depending on plan. A full image search uses about 3 calls
-  (Lens exact, Lens products, Shopping).
-- Apify social scraping: paid per run. Enable it only for logged-in users or cache it per query.
-- Try-on (FASHN): about 7 to 8 US cents per generation. Rate-limited per user per day, and a natural premium feature.
-- Revenue: store subscriptions (Growth tier), CPC for partner clicks, affiliate commissions where networks
-  exist (Daraz affiliate, Amazon Associates), and an optional shopper Pro tier (more try-ons and alerts).
+Saasta runs on its own crawler, index and models, so there is no per-search fee to anyone.
+- **Search:** one image embedding (~40 ms on a CPU core, ~3 ms on a GPU) plus an in-memory vector lookup.
+  A single 8-core CPU box serves roughly 50 to 100 searches per second. Cost per search is a tiny fraction of a cent.
+- **Crawling:** about 1 request per second per site, weekly refresh. 500 stores × 2,000 products is ~1M pages a
+  week on one small worker.
+- **Garment try-on:** a diffusion model; about 5 to 10 s per image on one modern GPU. A rented 24 GB GPU
+  (roughly $0.3 to $0.8/hour) does 400+ try-ons per hour, so well under a cent each at good utilisation.
+  CPU-only works for testing but takes minutes per image.
+- **Accessory try-on:** pose + placement, about 1 s on CPU.
+- **Revenue:** store subscriptions (Growth tier), CPC for partner clicks, affiliate commissions where networks
+  exist, and an optional shopper Pro tier (more try-ons and alerts).
 
 ## Risks and mitigations
 
-- **Provider dependency (Google results via SerpApi):** partner catalog and our own visual index grow over time.
-  The pipeline is provider-agnostic.
-- **Scraping ToS for social platforms:** only public posts via a compliant vendor, link back to the original
-  post, no content re-hosting. Easy to switch off per source.
-- **Try-on misuse:** login required, consent checkbox, conservative moderation, selfies never stored.
+- **Index coverage vs. Google:** we cover the stores Pakistani shoppers actually buy from (seed list plus
+  partner and social onboarding), not the whole web. Coverage grows every time a store joins or gets crawled.
+- **Crawling ethics and law:** public product facts only, robots.txt obeyed, opt-out honoured by deleting data,
+  no images re-hosted, every result links to the source. Social platforms are **not** scraped: sellers there
+  list themselves.
+- **Model licenses:** only Apache/MIT weights (see apps/ml/LICENSES.md). Popular non-commercial models
+  (CatVTON, IDM-VTON, OOTDiffusion) are excluded.
+- **Try-on misuse:** login required, consent checkbox, per-user rate limits, selfies never stored or used for training.

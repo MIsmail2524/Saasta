@@ -13,7 +13,7 @@ vulnerabilities. We aim to reply within 72 hours.
   payloads are dropped. Originals are never stored or served.
 - Videos: size and duration caps, ffmpeg run without a shell, with timeouts, audio/subtitle/data streams disabled.
 - Stored files are content-addressed (`sha256.jpg`) and looked up with a strict regex, so there is no path traversal.
-- Try-on selfies are processed in memory and never written to disk.
+- Try-on selfies are processed in memory and never written to disk. Results are stored under unguessable keys.
 
 **Outbound requests (SSRF)**
 - Only http/https on ports 80/443, no credentials in URLs, no `localhost`/`.internal`/`.local`.
@@ -38,6 +38,17 @@ vulnerabilities. We aim to reply within 72 hours.
 - The widget renders inside a closed Shadow DOM using `textContent` only, and only http(s) links.
 - All outbound result links go through HMAC-signed `/out` redirects (no open redirect). `rel="noopener noreferrer nofollow"`.
 - `?next=` redirects after login only accept same-site relative paths.
+
+**ML service**
+- Runs on the internal network only (not routed by Caddy), and requires a shared bearer token compared in
+  constant time. Refuses to start with the default token unless explicitly in dev mode.
+- Payload caps on every endpoint, base64 strictly validated, one try-on generation at a time (memory safety).
+- Only commercially licensed weights (apps/ml/LICENSES.md). Weights are downloaded once, with no runtime calls out.
+- The API never lets the ML service fetch URLs. Images are fetched by the API's SSRF-safe client and sent as bytes.
+
+**Crawler**
+- Uses the same SSRF-safe fetcher, obeys robots.txt and Crawl-delay, parses sitemaps with `defusedxml`
+  (no XML bombs or external entities), and caps page sizes and pages per site.
 
 **API**
 - Strict Pydantic schemas (`extra="forbid"`), length limits on every field, a request body cap.

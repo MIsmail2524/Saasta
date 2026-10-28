@@ -7,8 +7,8 @@
 
 ## The 30-second pitch
 
-"Your customers see an outfit on Instagram, screenshot it and ask 'where is this from?'. Google Lens sends them to
-whoever it indexes, often a reseller or a copy. Saasta is a visual shopping search built for Pakistan: when
+"Your customers see an outfit on Instagram, screenshot it and ask 'where is this from?'. Search engines send them to
+whoever they index, often a reseller or a copy. Saasta is a visual shopping search built for Pakistan: when
 someone searches with a photo that matches your product, you show up first as a verified partner with a trust badge.
 You can also add 'search by photo' to your own site with one line of code, and every week we show you what shoppers
 in your category searched for and couldn't find. Listing is free. Want me to set it up for you today?"
@@ -63,6 +63,8 @@ in your category searched for and couldn't find. Listing is free. Want me to set
   doesn't cover Instagram sellers, and doesn't give you demand data. We're additive and free to start.
 - **"Will this send traffic to competitors?"** Your products appear for searches that match *your* items. The widget
   on your site only shows *your* catalog.
+- **"Do you send our data to other AI companies?"** No. Saasta runs its own models on its own servers.
+  Your photos are only used to train our models if you opt in.
 - **"Is our data safe?"** We only read your public catalog. Widget keys are locked to your domain. Insights are
   aggregated and anonymous.
 - **"We don't have a developer."** Shopify import is one click. The widget is one line in your theme.
