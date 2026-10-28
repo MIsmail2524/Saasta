@@ -1,4 +1,5 @@
-# Production-style stack: Caddy (HTTPS) -> web (Next.js) -> api (FastAPI) + worker, Postgres, Redis.
+# Production-style stack: Caddy (HTTPS) -> web (Next.js) -> api (FastAPI) + worker -> ml (our models),
+# Postgres, Redis. No third-party AI or search APIs.
 # Usage: cp .env.example .env && fill it in && docker compose up -d --build
 
 services:
@@ -40,6 +41,7 @@ services:
       SAASTA_PUBLIC_API_URL: https://${SITE_DOMAIN:-localhost}/api
       SAASTA_CORS_ORIGINS: https://${SITE_DOMAIN:-localhost}
       SAASTA_TRUSTED_PROXY_HOPS: 1
+      SAASTA_ML_URL: http://ml:8100
     volumes:
       - uploads:/app/data/uploads
     depends_on:
@@ -52,6 +54,19 @@ services:
     <<: *api
     command: ["python", "-m", "app.worker"]
     healthcheck: { disable: true }
+
+  # Our own models: fashion embeddings + try-on. Never exposed publicly.
+  # First run: docker compose run --rm ml python scripts/download_weights.py --dir /models/tryon
+  ml:
+    build: ./apps/ml
+    restart: unless-stopped
+    environment:
+      SAASTA_ML_TOKEN: ${SAASTA_ML_TOKEN:?set SAASTA_ML_TOKEN in .env}
+    volumes: [models:/models]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    # GPU server? uncomment:
+    # deploy: { resources: { reservations: { devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }] } } }
 
   db:
     image: postgres:17-alpine
@@ -72,6 +87,7 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
 
 volumes:
+  models:
   pg:
   uploads:
   caddy_data:

@@ -3,6 +3,9 @@ updates:
   - package-ecosystem: pip
     directory: /apps/api
     schedule: { interval: weekly }
+  - package-ecosystem: pip
+    directory: /apps/ml
+    schedule: { interval: weekly }
   - package-ecosystem: npm
     directory: /apps/web
     schedule: { interval: weekly }
@@ -10,7 +13,7 @@ updates:
       next:
         patterns: ["next", "eslint-config-next", "react", "react-dom"]
   - package-ecosystem: docker
-    directories: ["/apps/api", "/apps/web"]
+    directories: ["/apps/api", "/apps/web", "/apps/ml"]
     schedule: { interval: weekly }
   - package-ecosystem: github-actions
     directory: /
