@@ -12,7 +12,8 @@ const CATS = [
   ["one-pieces", "Dress / full suit"],
   ["shoes", "Shoes"],
   ["bags", "Bag"],
-  ["jewellery", "Jewellery"],
+  ["jewellery", "Necklace / set"],
+  ["earrings", "Earrings / jhumkay"],
   ["watches", "Watch"],
   ["eyewear", "Glasses"],
 ];
@@ -68,8 +69,8 @@ export function TryOn() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <h1 className="text-3xl font-extrabold">Try it on before you buy</h1>
       <p className="mt-1 max-w-2xl text-muted">
-        See how a find looks on you: clothes, eastern suits, shoes, bags and jewellery. Your photo is processed for this
-        try-on only and is never stored on our servers.
+        See how a find looks on you: clothes, eastern suits, shoes, bags and jewellery. Runs on Saasta&apos;s own
+        models. Your photo is used for this try-on only and never kept.
       </p>
       {!loading && !user ? (
         <div className="card mt-6 p-6">
@@ -104,7 +105,7 @@ export function TryOn() {
             </label>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>This is a photo of me (or I have permission), and I agree to it being processed by our try-on provider for this request.</span>
+              <span>This is a photo of me (or I have permission), and I agree to Saasta processing it for this try-on.</span>
             </label>
             {error && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
             <button className="btn-primary w-full" disabled={busy || !consent || job?.status === "running"}>
@@ -118,7 +119,7 @@ export function TryOn() {
             ) : job?.status === "failed" ? (
               <p className="text-danger">{job.error}</p>
             ) : job ? (
-              <p className="animate-pulse text-muted">Stitching your look… about 10 to 20 seconds</p>
+              <p className="animate-pulse text-muted">Creating your look… this can take up to a minute</p>
             ) : garment ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={garment} alt="Product" referrerPolicy="no-referrer" className="max-h-96 object-contain" />

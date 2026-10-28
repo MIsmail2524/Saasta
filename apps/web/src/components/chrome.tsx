@@ -54,6 +54,7 @@ export function Footer() {
           <p className="font-semibold">Company</p>
           <Link className="block text-muted hover:text-ink" href="/stores">Saasta for stores</Link>
           <Link className="block text-muted hover:text-ink" href="/privacy">Privacy</Link>
+          <Link className="block text-muted hover:text-ink" href="/bot">SaastaBot</Link>
           <Link className="block text-muted hover:text-ink" href="/terms">Terms</Link>
         </div>
       </div>

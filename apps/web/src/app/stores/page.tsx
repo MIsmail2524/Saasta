@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 const PAINS = [
-  ["Your products are invisible to photo shoppers", "Shoppers screenshot a reel and ask “where is this from?”. If Google Lens doesn't index you, you lose that sale to a reseller."],
+  ["Your products are invisible to photo shoppers", "Shoppers screenshot a reel and ask “where is this from?”. If your products aren't where they search, that sale goes to a reseller or a copy."],
   ["Visitors leave when search fails", "Text search can't find “that green kurta with mirror work”. Shoppers bounce instead of describing it."],
   ["You guess what to stock", "You don't see what people wanted and couldn't find, or what price they expected."],
 ];
@@ -26,6 +26,11 @@ const OFFER = [
     t: "Demand radar",
     d: "Weekly insights: top searched categories in your country, trending colours, price bands shoppers pay, and searches no one could fulfil. Stock what's already wanted.",
     k: "Unmet demand",
+  },
+  {
+    t: "No website? No problem",
+    d: "Instagram, TikTok and WhatsApp sellers can list too: upload product photos with a link to your post or chat, and get found by photo search.",
+    k: "Social sellers",
   },
   {
     t: "Click analytics",

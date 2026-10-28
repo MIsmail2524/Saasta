@@ -69,6 +69,7 @@ export type SearchResult = {
     category?: string;
     color?: string;
     tryon_category?: string | null;
+    attributes?: string[];
     max_price?: number | null;
   };
   price?: { min: number; median: number; max: number; count: number; basis: string } | null;
@@ -77,7 +78,7 @@ export type SearchResult = {
   similar: Offer[];
   dupes: Offer[];
   social: Offer[];
-  sources: { used: string[]; failed: string[] };
+  sources: { engine: "model" | "fingerprint"; indexed: number };
   currency: string;
 };
 export type SearchDoc = {

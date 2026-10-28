@@ -9,16 +9,8 @@ const TABS = [
   ["exact", "Exact matches"],
   ["similar", "Similar"],
   ["dupes", "Cheaper dupes"],
-  ["social", "Instagram & TikTok"],
+  ["social", "Social sellers"],
 ] as const;
-
-const SOURCE_NAMES: Record<string, string> = {
-  google_lens: "Google Lens",
-  google_shopping: "Google Shopping",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  partner: "Saasta partner stores",
-};
 
 export function Results({ id }: { id: string }) {
   const [doc, setDoc] = useState<SearchDoc | null>(null);
@@ -96,7 +88,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function Loading({ image }: { image?: string | null }) {
-  const steps = ["Reading your photo", "Searching stores & marketplaces", "Checking Instagram & TikTok sellers", "Comparing prices and seller trust"];
+  const steps = ["Reading your photo", "Matching against thousands of stores", "Checking social sellers", "Comparing prices and seller trust"];
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setI((x) => Math.min(x + 1, steps.length - 1)), 2500);
@@ -175,6 +167,7 @@ function ResultView({ r, image, searchId }: { r: SearchResult; image?: string | 
           <div className="flex flex-wrap gap-1.5">
             {u.category && <span className="chip">{u.category}</span>}
             {u.color && <span className="chip">{u.color}</span>}
+            {u.attributes?.map((a) => <span key={a} className="chip">{a}</span>)}
             {u.max_price && <span className="chip">under {money(u.max_price, r.currency)}</span>}
           </div>
         </div>
@@ -192,8 +185,8 @@ function ResultView({ r, image, searchId }: { r: SearchResult; image?: string | 
           </a>
         )}
         <div className="card p-4 text-xs text-muted">
-          Searched: {r.sources.used.map((s) => SOURCE_NAMES[s] ?? s).join(", ")}.
-          {r.sources.failed.length > 0 && <> Some sources were slow and skipped.</>}
+          Searched Saasta&apos;s index of {r.sources.indexed.toLocaleString()} products from stores and sellers
+          {r.sources.engine === "fingerprint" && <> (quick match mode)</>}.
           <br />
           Prices converted to {r.currency} are approximate.
         </div>
@@ -220,8 +213,8 @@ function ResultView({ r, image, searchId }: { r: SearchResult; image?: string | 
         )}
         {list.length === 0 ? (
           <div className="card mt-4 p-8 text-center text-muted">
-            {r.sources.used.length === 1 && r.sources.used[0] === "partner" ? (
-              <>Live web search is not connected on this server yet, so only partner stores were searched.</>
+            {r.sources.indexed === 0 ? (
+              <>Our product index is still being built on this server. Check back soon.</>
             ) : (
               <>Nothing here yet. Try another tab, or refine with words like &quot;same but black&quot;.</>
             )}

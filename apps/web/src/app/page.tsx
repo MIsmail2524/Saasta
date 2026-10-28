@@ -4,7 +4,7 @@ import { SearchBox } from "@/components/search-box";
 const FEATURES = [
   {
     t: "Every seller, one search",
-    d: "Google Lens, Google Shopping, brand stores, marketplaces, plus Instagram and TikTok sellers that Google never shows.",
+    d: "Our own index of Pakistan's fashion stores and brands, plus Instagram and WhatsApp sellers who list with us. Search engines miss most of those.",
   },
   {
     t: "Shop the whole reel",
@@ -19,12 +19,20 @@ const FEATURES = [
     d: "Same look for less. We rank close lookalikes from trusted sellers at 40% or more below the usual price.",
   },
   {
+    t: "Our own fashion AI",
+    d: "Saasta's models are tuned for local fashion: they know a kurta from a kameez and a khussa from a loafer. No third-party AI sees your photos.",
+  },
+  {
     t: "Talk to your search",
     d: "\"Same but black, under 5k.\" Refine in plain words, Roman Urdu friendly.",
   },
   {
     t: "Price-drop alerts",
     d: "Watch any product and we'll track its price for you. Buy when it hits your number.",
+  },
+  {
+    t: "Try on anything",
+    d: "Clothes, eastern suits, jhumkay, necklaces, glasses, watches, bags and shoes, on your own photo.",
   },
 ];
 

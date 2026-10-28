@@ -4,11 +4,9 @@ import { useState } from "react";
 import { api, money, outUrl, type Offer } from "@/lib/api";
 
 const SOURCE: Record<string, string> = {
-  google_lens: "Web",
-  google_shopping: "Shopping",
-  instagram: "Instagram",
-  tiktok: "TikTok",
+  crawl: "Store",
   partner: "Partner",
+  social: "Social seller",
 };
 
 export function TrustBadge({ trust }: { trust: Offer["trust"] }) {
