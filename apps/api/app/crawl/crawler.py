@@ -59,11 +59,17 @@ class Site:
         wait = self._last + self.delay - time.monotonic()
         if wait > 0:
             await asyncio.sleep(wait)
-        self._last = time.monotonic()
-        try:
-            return await safe_get(url, max_bytes, accept, timeout=20)
-        except UnsafeURL:
-            return None
+        for attempt in range(4):
+            self._last = time.monotonic()
+            try:
+                return await safe_get(url, max_bytes, accept, timeout=20)
+            except UnsafeURL as e:
+                if "429" not in str(e) and "503" not in str(e):
+                    return None
+                # rate limited: back off (5s, 15s, 45s) and slow down for the rest of this site
+                self.delay = min(self.delay * 2, 10.0)
+                await asyncio.sleep(5 * 3 ** attempt)
+        return None
 
 
 def _ext_id(url: str, sku: str | None) -> str:
@@ -161,6 +167,15 @@ async def crawl_site(domain: str) -> dict:
         return await _finish(domain, None, 0, "blocked by robots.txt")
     count = await _crawl_shopify(site, s.crawl_max_pages_per_site)
     kind = "shopify"
+    if count is None:
+        # Many stores serve the shop from a subdomain (pk.brand.com); robots.txt sitemaps point there.
+        hosts = {(urlsplit(u).hostname or "").lower() for u in sitemaps}
+        for host in sorted(h for h in hosts if h.endswith("." + domain)):
+            sub = Site(host)
+            await sub.load_robots()
+            count = await _crawl_shopify(sub, s.crawl_max_pages_per_site)
+            if count is not None:
+                break
     if count is None:
         kind, count = "sitemap", 0
         urls = await _sitemap_urls(site, sitemaps, s.crawl_max_pages_per_site)
