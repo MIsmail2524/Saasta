@@ -26,7 +26,8 @@ log = logging.getLogger("saasta.search")
 TRACKING = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid",
             "srsltid", "igshid", "ref", "spm", "variant"}
 EXACT_COS = 0.93       # embedding cosine above which two product photos are the same item
-EXACT_PHASH = 10       # or near-identical pixels (resized/recompressed copies)
+EXACT_PHASH = 10       # or near-identical pixels (resized/recompressed copies)...
+EXACT_PHASH_MIN_COS = 0.88  # ...but only when the model agrees it's very close
 SIMILAR_COS = 0.55     # below this, results are noise
 
 
@@ -69,7 +70,9 @@ def _rank_key(o: Offer):
 
 def _offer(row: CatalogItem, sim: float, fp: dict | None) -> Offer:
     match = "exact" if sim >= EXACT_COS else "similar"
-    if fp and row.phash:
+    # pHash alone is fooled by plain white studio backgrounds (every shoe "looks" alike), so it can only
+    # confirm a match the model already rates as very close: e.g. a resized or recompressed copy.
+    if match == "similar" and fp and row.phash and sim >= EXACT_PHASH_MIN_COS:
         if imagehash.hex_to_hash(fp["phash"]) - imagehash.hex_to_hash(row.phash) <= EXACT_PHASH:
             match = "exact"
     return Offer(
