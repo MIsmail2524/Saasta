@@ -1,5 +1,5 @@
 # CPU image. For GPU servers use a CUDA base image and the matching torch/onnxruntime-gpu wheels.
-FROM python:3.13-slim
+FROM python:3.15-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HF_HOME=/models/hf
 RUN apt-get update && apt-get install -y --no-install-recommends git libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
